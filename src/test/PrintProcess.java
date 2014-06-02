@@ -1,7 +1,10 @@
-package model;
+package test;
 
 import java.io.*;
 import java.net.*;
+
+import model.MigratableProcess;
+import io.*;
 
 public class PrintProcess extends MigratableProcess {
 
@@ -48,32 +51,6 @@ public class PrintProcess extends MigratableProcess {
 	}
 
 	@Override
-	public void register(int port) {
-		try {
-			System.out.println("    Client(migratable process) starts.");
-			// connect and register to server socket
-			InetAddress addr = InetAddress.getLocalHost();
-			LOCAL_HOSTNAME = addr.getHostAddress();
-			clientSocket = new Socket(LOCAL_HOSTNAME, port);
-			System.out.println("    Client has connected to the server.");
-			// open object output stream and instruction reader stream
-			os = clientSocket.getOutputStream();
-			oos = new ObjectOutputStream(os);
-			instructionReader =
-	                new BufferedReader(
-	                    new InputStreamReader(clientSocket.getInputStream()));
-		} catch (UnknownHostException e) {
-            System.err.println("Don't know about host " + LOCAL_HOSTNAME);
-            System.exit(1);
-        } catch (IOException e) {
-            System.err.println("Couldn't get I/O for the connection to " +
-                LOCAL_HOSTNAME);
-            System.exit(1);
-        } 
-		
-	}
-
-	@Override
 	public String toString() {
 		// TODO Auto-generated method stub
 		return null;
@@ -88,20 +65,5 @@ public class PrintProcess extends MigratableProcess {
 	public void resume() {
 		suspending = false;
 		run();
-	}
-	
-	/**
-	 * local test for client
-	 */
-	public static void main(String args[]) {
-		// initialization
-		String stringArgs[] = new String[3];
-		stringArgs[0] = "test";
-		stringArgs[1] = stringArgs[2] = "yijiem.txt";
-		PrintProcess pp = new PrintProcess(stringArgs);
-		
-		// start process
-		pp.register(ProcessManager.PORT_NUMBER);
-		new Thread(pp).start();
 	}
 }
