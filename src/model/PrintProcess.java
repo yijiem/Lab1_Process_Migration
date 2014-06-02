@@ -33,43 +33,18 @@ public class PrintProcess extends MigratableProcess {
 
 	@Override
 	public void run() {
-		if(suspending == false) {
+		while (!suspending) {
 			// periodically increase the coreValue
-			for(int i = 0; i < 10; i++) {
-				coreValue++;
-				System.out.println("    coreValue = " + coreValue);
-				try {
-					Thread.sleep(1000);
-				} catch(InterruptedException e) {
-					System.err.println("Thread is interrupted when sleep for one second.");
-			        System.exit(1);
-				}
-			}
-			
-			// wait till server send suspend signal
+			coreValue++;
+			System.out.println("    coreValue = " + coreValue);
 			try {
-				if(instructionReader.readLine().equals("suspend")) {
-					suspend();
-				}
-			} catch(IOException e) {
-				System.err.println("Couldn't read instruction from server.");
+				Thread.sleep(1000);
+			} catch(InterruptedException e) {
+				System.err.println("Thread is interrupted when sleep for one second.");
 		        System.exit(1);
 			}
-			
-		} else {
-			
-			// periodically increase the coreValue
-			for(int i = 0; i < 5; i++) {
-				coreValue++;
-				System.out.println("    coreValue = " + coreValue);
-				try {
-					Thread.sleep(1000);
-				} catch(InterruptedException e) {
-					System.err.println("Thread is interrupted when sleep for one second.");
-			        System.exit(1);
-				}
-			}
 		}
+		suspending = false;		
 	}
 
 	@Override
@@ -106,28 +81,13 @@ public class PrintProcess extends MigratableProcess {
 
 	@Override
 	public void suspend() {
-		try{
-			suspending = true;
-			System.out.println("    Client has received suspend signal.");
-			// send object to server
-			oos.writeObject(this);
-			System.out.println("    Client sends itself to server and then terminates.");
-			// gracefully exit and stop execution
-			os.close();
-			oos.close();
-			instructionReader.close();
-			clientSocket.close();
-			System.exit(0);
-		} catch(IOException e) {
-			e.printStackTrace();
-			System.err.println("Couldn't write object to server.");
-	        System.exit(1);
-		}
-		
+		suspending = true;	
 	}
 
 	@Override
 	public void resume() {
+		suspending = false;
+		run();
 	}
 	
 	/**
