@@ -1,20 +1,12 @@
 package test;
 
-import java.io.*;
-import java.net.*;
-
 import model.MigratableProcess;
 import io.*;
 
 public class PrintProcess extends MigratableProcess {
 
 	private static final long serialVersionUID = 1L;
-	private static String LOCAL_HOSTNAME;
 	
-	private transient Socket clientSocket;
-	private transient OutputStream os;
-	private transient ObjectOutputStream oos; // output object to server through socket
-	private transient BufferedReader instructionReader; // read instruction from server
 	private TransactionalFileInputStream  inFile;
 	private TransactionalFileOutputStream outFile;
 	private String query;
@@ -52,8 +44,7 @@ public class PrintProcess extends MigratableProcess {
 
 	@Override
 	public String toString() {
-		// TODO Auto-generated method stub
-		return null;
+		return "PrintProcess";
 	}
 
 	@Override
@@ -64,6 +55,6 @@ public class PrintProcess extends MigratableProcess {
 	@Override
 	public void resume() {
 		suspending = false;
-		run();
+		// run();
 	}
 }

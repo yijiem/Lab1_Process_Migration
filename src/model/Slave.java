@@ -1,10 +1,12 @@
 package model;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.OutputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.Socket;
@@ -22,10 +24,6 @@ public class Slave {
 	private String instruction;
 	private InputStream isWithMaster;
 	private ObjectInputStream oisWithMaster;
-	
-	// Connect With another node(slave)
-	private OutputStream osWithSlave;
-	private ObjectOutputStream oosWithSlave;
 	
 	public Slave(String hostname, int port){
 		System.out.println("    A Slave starts...");
@@ -80,7 +78,7 @@ public class Slave {
 					int threadId = (Integer) oisWithMaster.readObject();
 					System.out.println("threadId = " + threadId);
 					// create migratable process using generic class expression
-					Class<?> className = Class.forName("model." + processName);
+					Class<?> className = Class.forName("test." + processName);
 					Constructor<?> constructor = className.getConstructor(String[].class);				
 					MigratableProcess mp = (MigratableProcess) constructor.newInstance(new Object[] {arguments});
 					
@@ -139,6 +137,71 @@ public class Slave {
 					MigratableProcess mp = threadsHashMap.get(threadId);
 					// resume thread
 					mp.resume();
+					new Thread(mp).start();
+				} catch(IOException e) {
+					System.err.println("Slave: Couldn't read threadId from master.");
+				    System.exit(1);
+				} catch(ClassNotFoundException cnfe) {
+					System.err.println("Slave: ThreadId class not found.");
+				    System.exit(1);
+				}
+				
+			// migrate(serialize) thread in a .ser file	
+			} else if(instruction.equals("migrate")) { 
+				System.out.println("Slave has received migrate signal from master, migrate a thread immediately...");
+				try {
+					// get Thread id
+					int threadId = (Integer) oisWithMaster.readObject();
+					// get thread from hashmap
+					MigratableProcess mp = threadsHashMap.get(threadId);
+					new File("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+					FileOutputStream file = new FileOutputStream("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+					ObjectOutputStream objectOutStrm = new ObjectOutputStream(file);
+		            objectOutStrm.writeObject(mp);
+		            objectOutStrm.flush();
+		            objectOutStrm.close();
+		            // remove thread from node's hashmap
+		            threadsHashMap.remove(threadId);
+		            System.out.println("Slave has stored migrating thread in the shared file system.");
+				} catch(IOException e) {
+					System.err.println("Slave: Couldn't read threadId from master.");
+				    System.exit(1);
+				} catch(ClassNotFoundException cnfe) {
+					System.err.println("Slave: ThreadId class not found.");
+				    System.exit(1);
+				}
+			
+			// receive thread from a .ser file
+			} else if(instruction.equals("receive")) {
+				System.out.println("Slave has received receive signal from master, "
+						+ "receive a thread from .ser file immediately...");
+				try {
+					// get Thread id
+					int threadId = (Integer) oisWithMaster.readObject();
+					FileInputStream file = new FileInputStream("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+					ObjectInputStream objectInStrm = new ObjectInputStream(file);
+					MigratableProcess mp = (MigratableProcess) objectInStrm.readObject();
+					objectInStrm.close();
+		            // add thread into node's hashmap
+		            threadsHashMap.put(threadId, mp);
+		            System.out.println("Slave has received migrating thread from the shared file system.");
+				} catch(IOException e) {
+					System.err.println("Slave: Couldn't read threadId from master.");
+				    System.exit(1);
+				} catch(ClassNotFoundException cnfe) {
+					System.err.println("Slave: ThreadId class not found.");
+				    System.exit(1);
+				}
+				
+			} else if(instruction.equals("remove")) {
+				// remove thread
+				System.out.println("Slave has received remove signal from master, remove a thread immediately...");
+				try {
+					// get Thread id
+					int threadId = (Integer) oisWithMaster.readObject();		
+		            // remove thread from node's hashmap
+		            threadsHashMap.remove(threadId);
+		            System.out.println("Slave has removed thread from the its hash map.");
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
 				    System.exit(1);
