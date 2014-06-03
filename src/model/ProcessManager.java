@@ -3,13 +3,11 @@ package model;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Iterator;
-
-import test.PrintProcess;
 
 public class ProcessManager {
 	
@@ -21,14 +19,13 @@ public class ProcessManager {
 	private HashMap<Integer, Integer> processSlaveMap;
 	private HashMap<Integer, String> processStatusMap;
 	private HashMap<Integer, ObjectOutputStream> slaveOutputStreamMap;
+	private HashMap<Integer, ObjectInputStream> slaveInputStreamMap;
 	private BufferedReader reader;
 	private String userInput;
 	private String cmdLineArguments[];
 	private ConnectionHandler handler;
-	private PrintWriter writer;
 	private ObjectOutputStream outputStream;
-	private MigratableProcess mp;
-	private PrintProcess pp;
+	private ObjectInputStream inputStream;
 	
 	// constructor
 	public ProcessManager() {
@@ -37,6 +34,7 @@ public class ProcessManager {
 		processSlaveMap = new HashMap<Integer, Integer>();
 		processStatusMap = new HashMap<Integer, String>();
 		slaveOutputStreamMap = new HashMap<Integer, ObjectOutputStream>();
+		slaveInputStreamMap = new HashMap<Integer, ObjectInputStream>();
 		handler = new ConnectionHandler(PORT_NUMBER);
 		// spawn a new thread for handling connection
 		Thread t =new Thread(handler);
@@ -119,7 +117,9 @@ public class ProcessManager {
 					outputStream = slaveOutputStreamMap.get(slaveID);
 				} else {
 					outputStream = new ObjectOutputStream(slaveSocket.getOutputStream());
+					inputStream = new ObjectInputStream(slaveSocket.getInputStream());
 					slaveOutputStreamMap.put(slaveID, outputStream);
+					slaveInputStreamMap.put(slaveID, inputStream);
 				}				
 				outputStream.writeObject("start");
 				outputStream.writeObject(processName);
@@ -137,7 +137,7 @@ public class ProcessManager {
 		}
 	}
 	
-	public void sendSuspendMsg(int processID) {
+	public boolean sendSuspendMsg(int processID) {
 		// send suspend instruction to a migratable process
 		System.out.println("Sending suspend signal to process with processID: " + processID);
 		// find what slave the process is running/suspending on
@@ -150,16 +150,29 @@ public class ProcessManager {
 					outputStream = slaveOutputStreamMap.get(targetSlaveID);
 					outputStream.writeObject("suspend");
 					outputStream.writeObject(processID);
+					
+					inputStream = slaveInputStreamMap.get(targetSlaveID);
+					String suspendOK = null;
+					try {
+						suspendOK = (String) inputStream.readObject();
+					} catch (ClassNotFoundException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					if (suspendOK.equals("false"))
+						return false;					
+					// update process status
+					processStatusMap.put(processID, "suspending");
+										
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				// update process status
-				processStatusMap.put(processID, "suspending");
 			} else {
 				System.out.println("Error when locating slave socket...");
 			}
-		}	
+		}
+		return true;
 	}
 	
 	// send resume message to a specific process
@@ -197,7 +210,8 @@ public class ProcessManager {
 		} else {
 			// suspend the signal if its currently running
 			if (processStatusMap.get(processID).equals("running")) {
-				sendSuspendMsg(processID);
+				boolean suspendOK = sendSuspendMsg(processID);
+				if (!suspendOK) return;
 			}
 			try {
 				// contact the slave currently holding the process
@@ -211,7 +225,9 @@ public class ProcessManager {
 				if (outputStream == null) {
 					Socket slaveSocket = slavelist.get(targetSlaveID);
 					outputStream = new ObjectOutputStream(slaveSocket.getOutputStream());
+					inputStream = new ObjectInputStream(slaveSocket.getInputStream());
 					slaveOutputStreamMap.put(targetSlaveID, outputStream);
+					slaveInputStreamMap.put(targetSlaveID, inputStream);
 				}
 				outputStream.writeObject("receive");
 				outputStream.writeObject(processID);
