@@ -2,7 +2,6 @@ package test;
 
 import io.TransactionalFileInputStream;
 import io.TransactionalFileOutputStream;
-
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
@@ -10,8 +9,14 @@ import java.io.PrintStream;
 
 import model.MigratableProcess;
 
+/*
+ * GrepProcess is a Thread that periodically read a line from a file,
+ * do a specific query operation, and write result to another file. 
+ */
 public class GrepProcess extends MigratableProcess
 {
+	private static final long serialVersionUID = -2249264549655237138L;
+	
 	private TransactionalFileInputStream  inFile;
 	private TransactionalFileOutputStream outFile;
 	private String query;
@@ -20,7 +25,13 @@ public class GrepProcess extends MigratableProcess
 	private volatile boolean suspending;
 	private volatile boolean complete;
 	private volatile int count;
-
+	
+	/**
+	 * Create a GrepProcess object 
+	 * by designating query, input file name, output file name
+	 * @param args
+	 * @throws Exception
+	 */
 	public GrepProcess(String args[]) throws Exception
 	{
 		if (args.length != 3) {
@@ -37,6 +48,9 @@ public class GrepProcess extends MigratableProcess
 		outFile = new TransactionalFileOutputStream(args[2]);
 	}
 
+	/**
+	 * run function of GrepProcess Thread
+	 */
 	public void run()
 	{
 		PrintStream out = new PrintStream(outFile);
@@ -65,15 +79,22 @@ public class GrepProcess extends MigratableProcess
 		} catch (IOException e) {
 			System.out.println ("GrepProcess: Error: " + e);
 		}
-
 		suspending = false;
 	}
 
+	/**
+	 * Suspend running
+	 */
+	@Override
 	public void suspend()
 	{
 		suspending = true;
+		while(suspending);
 	}
 
+	/**
+	 * produce a simple string representation of GrepProcess object
+	 */
 	@Override
 	public String toString() {
 		String info = "Arguments: ";
@@ -82,12 +103,19 @@ public class GrepProcess extends MigratableProcess
 		}
 		return "[GrepProcess," + info + "]";
 	}
-
+	
+	/**
+	 * Resume running
+	 */
 	@Override
 	public void resume() {
 		suspending = false;
 	}
 	
+	/**
+	 * Check whether GrepProcess is completed or not
+	 */
+	@Override
 	public boolean isComplete() {
 		return complete;
 	}

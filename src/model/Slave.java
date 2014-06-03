@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Constructor;
@@ -13,16 +12,27 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 
+/*
+ * Slave which communicates with master(Process Manager) to
+ * run Threads(Migratable Process) under its context and receive
+ * user command to manipulate(start, suspend, resume, migrate, 
+ * receive) Threads.
+ */
 public class Slave {
 	
 	private HashMap<Integer, MigratableProcess> threadsHashMap; // class type is unknown
 	// Connect With master
 	private Socket socketWithMaster;
-	// private BufferedReader instructionReader;
 	private String instruction;
 	private ObjectInputStream oisWithMaster;
 	private ObjectOutputStream oosWithMaster;
 	
+	/**
+	 * Create a Slave instance and connect to master 
+	 * by designating hostname and port number of master
+	 * @param hostname
+	 * @param port
+	 */
 	public Slave(String hostname, int port){
 		System.out.println("    A Slave starts...");
 		try {
@@ -43,6 +53,16 @@ public class Slave {
 		threadsHashMap = new HashMap<Integer, MigratableProcess>();
 	}
 	
+	/**
+	 * Run slave process
+	 * receive master command and process correspondingly
+	 * Master command categories:  1. start   ---- start a new thread
+	 * 							   2. suspend ---- suspend an exiting thread
+	 * 							   3. resume  ---- resume a suspended thread
+	 * 							   4. migrate ---- migrate a suspended thread
+	 * 							   5. receive ---- receive a migrated thread
+	 * 							   6. remove  ---- remove a suspended thread
+	 */
 	public void run() {
 		while(true) {
 			
@@ -51,10 +71,10 @@ public class Slave {
 			} catch(IOException e) {
 				e.printStackTrace();
 				System.err.println("Slave: Couldn't read instruction from master.");
-			    System.exit(1);
+			    continue;
 			} catch(ClassNotFoundException cnfe) {
 				System.err.println("Slave: String class not found.");
-			    System.exit(1);
+			    continue;
 			}
 			
 			// create and start migratable thread
@@ -79,26 +99,59 @@ public class Slave {
 					threadsHashMap.put(threadId, mp);
 					// start thread
 					new Thread(mp).start();
+					// send success signal to master
+					oosWithMaster.writeObject("success");
 					// System.out.println("Thread has been started...");
 				} catch(IOException e) {
+					try {
+						// send fail signal to master
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					System.err.println("Slave: Couldn't read (process name/arguments/threadId) from master, "
 							+ "maybe master do not follow protocol.");
-				    System.exit(1);
+				    continue;
 				} catch(ClassNotFoundException cnfe) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					System.err.println("Slave: Arguments/ThreadId class not found.");
-				    System.exit(1);
+				    continue;
 				} catch(InstantiationException ie) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					ie.printStackTrace();
-					System.exit(1);
+					continue;
 				} catch(IllegalAccessException iae) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					iae.printStackTrace();
-					System.exit(1);
+					continue;
 				} catch(NoSuchMethodException nsme) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					nsme.printStackTrace();
-					System.exit(1);
+					continue;
 				} catch(InvocationTargetException ite) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					ite.printStackTrace();
-					System.exit(1);
+					continue;
 				}
 				
 			// suspend a thread determined by its Thread id
@@ -113,21 +166,21 @@ public class Slave {
 					if(mp.isComplete()) {
 						// if thread is completed, then send false signal to process manager
 						System.out.println("The thread is already completed, so just ignore...");
-						oosWithMaster.writeObject("false");
+						oosWithMaster.writeObject("fail");
 						continue;
 					} else {
 						// if thread is incompleted, then suspend thread and send true signal to process manager
 						mp.suspend();
-						oosWithMaster.writeObject("true");
+						oosWithMaster.writeObject("success");
 						oosWithMaster.flush();
 						System.out.println("The thread is incompleted, so suspend...");
 					}
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
-				    System.exit(1);
+				    continue;
 				} catch(ClassNotFoundException cnfe) {
 					System.err.println("Slave: ThreadId class not found.");
-				    System.exit(1);
+				    continue;
 				}
 			
 			// resume a thread determined by its Thread id
@@ -140,18 +193,20 @@ public class Slave {
 					MigratableProcess mp = threadsHashMap.get(threadId);
 					if(mp.isComplete()) {
 						System.out.println("The thread is already completed, so just ignore...");
+						oosWithMaster.writeObject("fail");
 						continue;
 					} else {
 						// resume thread
 						mp.resume();
 						new Thread(mp).start();
+						oosWithMaster.writeObject("success");
 					}
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
-				    System.exit(1);
+				    continue;
 				} catch(ClassNotFoundException cnfe) {
 					System.err.println("Slave: ThreadId class not found.");
-				    System.exit(1);
+				    continue;
 				}
 				
 			// migrate(serialize) thread in a .ser file	
@@ -164,6 +219,7 @@ public class Slave {
 					MigratableProcess mp = threadsHashMap.get(threadId);
 					if(mp.isComplete()) {
 						System.out.println("The thread is already completed, so just ignore...");
+						oosWithMaster.writeObject("fail");
 						continue;
 					} else {
 						new File(Config.DIRECTORY + "migrate" + threadId + ".ser");
@@ -181,10 +237,10 @@ public class Slave {
 					}
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
-				    System.exit(1);
+				    continue;
 				} catch(ClassNotFoundException cnfe) {
 					System.err.println("Slave: ThreadId class not found.");
-				    System.exit(1);
+				    continue;
 				}
 			
 			// receive thread from a .ser file
@@ -201,12 +257,23 @@ public class Slave {
 		            // add thread into node's hashmap
 		            threadsHashMap.put(threadId, mp);
 		            System.out.println("Slave has received migrating thread from the shared file system.");
+		            oosWithMaster.writeObject("success");
 				} catch(IOException e) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 					System.err.println("Slave: Couldn't read threadId from master.");
-				    System.exit(1);
+				    continue;
 				} catch(ClassNotFoundException cnfe) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 					System.err.println("Slave: ThreadId class not found.");
-				    System.exit(1);
+				    continue;
 				}
 				
 			} else if(instruction.equals("remove")) {
@@ -218,19 +285,30 @@ public class Slave {
 		            // remove thread from node's hashmap
 		            threadsHashMap.remove(threadId);
 		            System.out.println("Slave has removed thread from the its hash map.");
+		            oosWithMaster.writeObject("success");
 				} catch(IOException e) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e1) {
+						e.printStackTrace();
+					}
 					System.err.println("Slave: Couldn't read threadId from master.");
-				    System.exit(1);
+				    continue;
 				} catch(ClassNotFoundException cnfe) {
+					try {
+						oosWithMaster.writeObject("fail");
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 					System.err.println("Slave: ThreadId class not found.");
-				    System.exit(1);
+				    continue;
 				}				
 			}
 		}
 	}
 	
 	/**
-	 * Start a slave process
+	 * Initialize a slave and start it.
 	 */
 	public static void main(String args[]) {
 		Slave newSlave = new Slave(Config.MASTER_IP, Config.MASTER_PORT);
