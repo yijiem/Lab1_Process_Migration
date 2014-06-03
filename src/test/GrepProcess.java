@@ -15,9 +15,11 @@ public class GrepProcess extends MigratableProcess
 	private TransactionalFileInputStream  inFile;
 	private TransactionalFileOutputStream outFile;
 	private String query;
+	private String[] arguments;
 
 	private volatile boolean suspending;
 	private volatile boolean complete;
+	private volatile int count;
 
 	public GrepProcess(String args[]) throws Exception
 	{
@@ -26,8 +28,10 @@ public class GrepProcess extends MigratableProcess
 			throw new Exception("Invalid Arguments");
 		}
 		
+		arguments = args;
 		suspending = false;
 		complete = false;
+		count = 0;
 		query = args[0];
 		inFile = new TransactionalFileInputStream(args[1]);
 		outFile = new TransactionalFileOutputStream(args[2]);
@@ -44,6 +48,7 @@ public class GrepProcess extends MigratableProcess
 				if (line == null) break;
 				if (line.contains(query)) {
 					out.println(line);
+					System.out.println(++count + ": " + line);
 				}
 				// Make grep take longer so that we don't require extremely large files for interesting results
 				try {
@@ -71,7 +76,11 @@ public class GrepProcess extends MigratableProcess
 
 	@Override
 	public String toString() {
-		return "GrepProcess";
+		String info = "Arguments: ";
+		for (int i = 0; i < arguments.length; i++) {
+			info += arguments[i] + " ";
+		}
+		return "[GrepProcess," + info + "]";
 	}
 
 	@Override

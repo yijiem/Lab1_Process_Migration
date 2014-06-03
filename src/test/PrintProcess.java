@@ -10,6 +10,7 @@ public class PrintProcess extends MigratableProcess {
 	private TransactionalFileInputStream  inFile;
 	private TransactionalFileOutputStream outFile;
 	private String query;
+	private String[] arguments;
 	private int coreValue; // core value of the thread, use to examine process migration
 	private volatile boolean suspending;
 	private volatile boolean complete;
@@ -20,9 +21,9 @@ public class PrintProcess extends MigratableProcess {
 			// throw new Exception("Invalid Arguments");
 			System.exit(1);
 		}
-		
 		complete = false;
 		suspending = false;
+		arguments = args;
 		query = args[0];
 		inFile = new TransactionalFileInputStream(args[1]);
 		outFile = new TransactionalFileOutputStream(args[2]);
@@ -49,7 +50,11 @@ public class PrintProcess extends MigratableProcess {
 
 	@Override
 	public String toString() {
-		return "PrintProcess";
+		String info = "Arguments: ";
+		for (int i = 0; i < arguments.length; i++) {
+			info += arguments[i] + " ";
+		}
+		return "[PrintProcess," + info + "]";
 	}
 
 	@Override
@@ -60,7 +65,6 @@ public class PrintProcess extends MigratableProcess {
 	@Override
 	public void resume() {
 		suspending = false;
-		// run();
 	}
 	
 	public boolean isComplete() {

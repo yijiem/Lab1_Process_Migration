@@ -27,7 +27,8 @@ public class ConnectionHandler implements Runnable {
                 Socket clientSocket = serverSocket.accept();
                 slaveID++;
                 slavelist.put(new Integer(slaveID), clientSocket);
-                System.out.println("Connection established to "+ clientSocket.getInetAddress() + ":" + clientSocket.getPort() + "(" + slaveID + ")");
+                System.out.println("Connection established to "+ clientSocket.getInetAddress() + ":" +
+                								clientSocket.getPort() + "(" + "slave " + slaveID + ")");
             }
         } catch (IOException e) {
             // TODO Auto-generated catch block

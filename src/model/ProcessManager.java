@@ -11,7 +11,6 @@ import java.util.Iterator;
 
 public class ProcessManager {
 	
-	private static int PORT_NUMBER = 7777;
 	private static int processID = 0;
 
 	private HashMap<Integer, Socket> slavelist;
@@ -35,7 +34,7 @@ public class ProcessManager {
 		processStatusMap = new HashMap<Integer, String>();
 		slaveOutputStreamMap = new HashMap<Integer, ObjectOutputStream>();
 		slaveInputStreamMap = new HashMap<Integer, ObjectInputStream>();
-		handler = new ConnectionHandler(PORT_NUMBER);
+		handler = new ConnectionHandler(Config.MASTER_PORT);
 		// spawn a new thread for handling connection
 		Thread t =new Thread(handler);
 		t.start();
@@ -73,6 +72,9 @@ public class ProcessManager {
 					// read the second argument
 					int removeProcessID = Integer.parseInt(cmdLineArguments[1]);
 					remove(removeProcessID);
+				} else if (commandType.equals("info")) {
+					// display all process info
+					displayInfo();
 				} else {
 					// command to start a new process
 					String processName = cmdLineArguments[0];
@@ -86,8 +88,7 @@ public class ProcessManager {
 							processArgs[i-1] = cmdLineArguments[i];
 						}
 					}
-					System.out.println("starting a new process: " + processName);
-					System.out.println("target slaveID: " + slaveID);
+					System.out.println("starting a new process: " + processName + " on slave: " + slaveID);
 					
 					// start the user-required process in the required slave
 					startProcess(processName, processArgs, slaveID, processID);
@@ -99,13 +100,31 @@ public class ProcessManager {
 		}
 	}
 	
+	// displays info about current alive processes
+	private void displayInfo() {
+		Iterator<Integer> nameIterator = processlist.keySet().iterator();
+		while (nameIterator.hasNext()) {
+			Integer pid = nameIterator.next();
+			String processName = processlist.get(pid);
+			// find the process status
+			String processStatus = processStatusMap.get(pid);
+			// locate where the process is running on
+			Integer slaveID = processSlaveMap.get(processID);
+			String status = "[Process ID: " + pid.intValue();
+			status += ", Process Name: " + processName;
+			status += ", Process Status: " + processStatus;
+			status += ", Location: Slave " + slaveID.intValue() + "]";
+			System.out.println(status);
+		}	
+	}
+
 	// start a new process in a specified slave node
 	public void startProcess(String processName, String[] processArgs, int slaveID, int processID) {
 		// find the desired slave in the slavelist
 		slavelist = handler.getSlaveList();
 		Iterator<Integer> slaveIterator = slavelist.keySet().iterator();
 		Socket slaveSocket = null;
-		while(slaveIterator.hasNext()){
+		while (slaveIterator.hasNext()){
 		  Integer id = slaveIterator.next();
 		  if (id.intValue() == slaveID) {
 			  slaveSocket = slavelist.get(id);
@@ -137,6 +156,7 @@ public class ProcessManager {
 		}
 	}
 	
+	
 	public boolean sendSuspendMsg(int processID) {
 		// send suspend instruction to a migratable process
 		System.out.println("Sending suspend signal to process with processID: " + processID);
@@ -156,7 +176,6 @@ public class ProcessManager {
 					try {
 						suspendOK = (String) inputStream.readObject();
 					} catch (ClassNotFoundException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 					if (suspendOK.equals("false"))
@@ -165,7 +184,6 @@ public class ProcessManager {
 					processStatusMap.put(processID, "suspending");
 										
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			} else {
@@ -190,7 +208,6 @@ public class ProcessManager {
 					outputStream.writeObject("resume");
 					outputStream.writeObject(new Integer(processID));
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				// update process status
@@ -219,7 +236,11 @@ public class ProcessManager {
 				outputStream = slaveOutputStreamMap.get(slaveID);	
 				outputStream.writeObject("migrate");
 				outputStream.writeObject(processID);
-				Thread.sleep(1000);
+				
+				// wait for acknowledgement of successful serialization
+				inputStream = slaveInputStreamMap.get(slaveID);
+				String serializeOK = (String) inputStream.readObject();
+
 				// contact the recieving slave
 				outputStream = slaveOutputStreamMap.get(targetSlaveID);
 				if (outputStream == null) {
@@ -233,11 +254,9 @@ public class ProcessManager {
 				outputStream.writeObject(processID);
 				// update process location
 				processSlaveMap.put(processID, targetSlaveID);
-			} catch (InterruptedException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (ClassNotFoundException e) {
 				e.printStackTrace();
 			}
 		}		
@@ -254,7 +273,6 @@ public class ProcessManager {
 				outputStream.writeObject("remove");
 				outputStream.writeObject(processID);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			// remove the process from data structure

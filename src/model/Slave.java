@@ -16,8 +16,6 @@ import java.util.HashMap;
 public class Slave {
 	
 	private HashMap<Integer, MigratableProcess> threadsHashMap; // class type is unknown
-	// private String HOSTNAME;
-
 	// Connect With master
 	private Socket socketWithMaster;
 	// private BufferedReader instructionReader;
@@ -29,12 +27,7 @@ public class Slave {
 		System.out.println("    A Slave starts...");
 		try {
 			// connect to master
-			// InetAddress addr = InetAddress.getLocalHost();
-			// LOCAL_HOSTNAME = addr.getHostAddress();
 			socketWithMaster = new Socket(hostname, port);
-//			instructionReader =
-//	                new BufferedReader(
-//	                    new InputStreamReader(socketWithMaster.getInputStream()));
 			oisWithMaster = new ObjectInputStream(socketWithMaster.getInputStream());
 			oosWithMaster = new ObjectOutputStream(socketWithMaster.getOutputStream());
 			System.out.println("    Slave has connected to the master...");
@@ -173,14 +166,17 @@ public class Slave {
 						System.out.println("The thread is already completed, so just ignore...");
 						continue;
 					} else {
-						new File("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
-						FileOutputStream file = new FileOutputStream("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+						new File(Config.DIRECTORY + "migrate" + threadId + ".ser");
+						FileOutputStream file = new FileOutputStream(Config.DIRECTORY + "migrate" + threadId + ".ser");
 						ObjectOutputStream objectOutStrm = new ObjectOutputStream(file);
 			            objectOutStrm.writeObject(mp);
 			            objectOutStrm.flush();
 			            objectOutStrm.close();
 			            // remove thread from node's hashmap
 			            threadsHashMap.remove(threadId);
+			            // send done signal to master
+			            oosWithMaster.writeObject("done");
+			            oosWithMaster.flush();
 			            System.out.println("Slave has stored migrating thread in the shared file system.");
 					}
 				} catch(IOException e) {
@@ -198,7 +194,7 @@ public class Slave {
 				try {
 					// get Thread id
 					int threadId = (Integer) oisWithMaster.readObject();
-					FileInputStream file = new FileInputStream("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+					FileInputStream file = new FileInputStream(Config.DIRECTORY + "migrate" + threadId + ".ser");
 					ObjectInputStream objectInStrm = new ObjectInputStream(file);
 					MigratableProcess mp = (MigratableProcess) objectInStrm.readObject();
 					objectInStrm.close();
@@ -228,12 +224,7 @@ public class Slave {
 				} catch(ClassNotFoundException cnfe) {
 					System.err.println("Slave: ThreadId class not found.");
 				    System.exit(1);
-				}
-				
-			} else if(instruction.equals("kill")) {
-				// kill slave
-				System.out.println("Slave is killed by master...Bye Bye");
-				System.exit(0);
+				}				
 			}
 		}
 	}
@@ -242,7 +233,7 @@ public class Slave {
 	 * Start a slave process
 	 */
 	public static void main(String args[]) {
-		Slave newSlave = new Slave("128.237.220.212", 7777);
+		Slave newSlave = new Slave(Config.MASTER_IP, Config.MASTER_PORT);
 		newSlave.run();
 	}
 }
