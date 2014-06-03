@@ -17,6 +17,7 @@ public class GrepProcess extends MigratableProcess
 	private String query;
 
 	private volatile boolean suspending;
+	private volatile boolean complete;
 
 	public GrepProcess(String args[]) throws Exception
 	{
@@ -25,6 +26,8 @@ public class GrepProcess extends MigratableProcess
 			throw new Exception("Invalid Arguments");
 		}
 		
+		suspending = false;
+		complete = false;
 		query = args[0];
 		inFile = new TransactionalFileInputStream(args[1]);
 		outFile = new TransactionalFileOutputStream(args[2]);
@@ -38,19 +41,19 @@ public class GrepProcess extends MigratableProcess
 		try {
 			while (!suspending) {
 				String line = in.readLine();
-
 				if (line == null) break;
-				
 				if (line.contains(query)) {
 					out.println(line);
 				}
-				
 				// Make grep take longer so that we don't require extremely large files for interesting results
 				try {
-					Thread.sleep(100);
+					Thread.sleep(1000);
 				} catch (InterruptedException e) {
 					// ignore it
 				}
+			}
+			if (!suspending) {
+				complete = true;
 			}
 		} catch (EOFException e) {
 			//End of File
@@ -58,26 +61,25 @@ public class GrepProcess extends MigratableProcess
 			System.out.println ("GrepProcess: Error: " + e);
 		}
 
-
 		suspending = false;
 	}
 
 	public void suspend()
 	{
 		suspending = true;
-		while (suspending);
 	}
 
 	@Override
 	public String toString() {
-		// TODO Auto-generated method stub
-		return null;
+		return "GrepProcess";
 	}
 
 	@Override
 	public void resume() {
-		// TODO Auto-generated method stub
-		
+		suspending = false;
 	}
-
+	
+	public boolean isComplete() {
+		return complete;
+	}
 }

@@ -22,8 +22,8 @@ public class Slave {
 	private Socket socketWithMaster;
 	// private BufferedReader instructionReader;
 	private String instruction;
-	private InputStream isWithMaster;
 	private ObjectInputStream oisWithMaster;
+	private ObjectOutputStream oosWithMaster;
 	
 	public Slave(String hostname, int port){
 		System.out.println("    A Slave starts...");
@@ -35,8 +35,8 @@ public class Slave {
 //			instructionReader =
 //	                new BufferedReader(
 //	                    new InputStreamReader(socketWithMaster.getInputStream()));
-			isWithMaster = socketWithMaster.getInputStream();
-			oisWithMaster = new ObjectInputStream(isWithMaster);
+			oisWithMaster = new ObjectInputStream(socketWithMaster.getInputStream());
+			oosWithMaster = new ObjectOutputStream(socketWithMaster.getOutputStream());
 			System.out.println("    Slave has connected to the master...");
 		} catch (UnknownHostException e) {
 	        System.err.println("Slave: Don't know about host " + hostname);
@@ -109,7 +109,7 @@ public class Slave {
 				}
 				
 			// suspend a thread determined by its Thread id
-			} else if(instruction.equals("suspend")) {
+			} else if(instruction.equals("suspend")) {		
 				System.out.println("Slave has received suspend signal from master, suspend a thread immediately...");
 				try {
 					// get Thread id
@@ -117,8 +117,18 @@ public class Slave {
 					System.out.println("threadId = " + threadId);
 					// get thread from hashmap
 					MigratableProcess mp = threadsHashMap.get(threadId);
-					// suspend thread
-					mp.suspend();
+					if(mp.isComplete()) {
+						// if thread is completed, then send false signal to process manager
+						System.out.println("The thread is already completed, so just ignore...");
+						oosWithMaster.writeObject("false");
+						continue;
+					} else {
+						// if thread is incompleted, then suspend thread and send true signal to process manager
+						mp.suspend();
+						oosWithMaster.writeObject("true");
+						oosWithMaster.flush();
+						System.out.println("The thread is incompleted, so suspend...");
+					}
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
 				    System.exit(1);
@@ -135,9 +145,14 @@ public class Slave {
 					int threadId = (Integer) oisWithMaster.readObject();
 					// get thread from hashmap
 					MigratableProcess mp = threadsHashMap.get(threadId);
-					// resume thread
-					mp.resume();
-					new Thread(mp).start();
+					if(mp.isComplete()) {
+						System.out.println("The thread is already completed, so just ignore...");
+						continue;
+					} else {
+						// resume thread
+						mp.resume();
+						new Thread(mp).start();
+					}
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
 				    System.exit(1);
@@ -154,15 +169,20 @@ public class Slave {
 					int threadId = (Integer) oisWithMaster.readObject();
 					// get thread from hashmap
 					MigratableProcess mp = threadsHashMap.get(threadId);
-					new File("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
-					FileOutputStream file = new FileOutputStream("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
-					ObjectOutputStream objectOutStrm = new ObjectOutputStream(file);
-		            objectOutStrm.writeObject(mp);
-		            objectOutStrm.flush();
-		            objectOutStrm.close();
-		            // remove thread from node's hashmap
-		            threadsHashMap.remove(threadId);
-		            System.out.println("Slave has stored migrating thread in the shared file system.");
+					if(mp.isComplete()) {
+						System.out.println("The thread is already completed, so just ignore...");
+						continue;
+					} else {
+						new File("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+						FileOutputStream file = new FileOutputStream("/Users/yijiem/Lab1_Process_Migration/" + threadId + ".ser");
+						ObjectOutputStream objectOutStrm = new ObjectOutputStream(file);
+			            objectOutStrm.writeObject(mp);
+			            objectOutStrm.flush();
+			            objectOutStrm.close();
+			            // remove thread from node's hashmap
+			            threadsHashMap.remove(threadId);
+			            System.out.println("Slave has stored migrating thread in the shared file system.");
+					}
 				} catch(IOException e) {
 					System.err.println("Slave: Couldn't read threadId from master.");
 				    System.exit(1);

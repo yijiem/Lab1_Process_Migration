@@ -12,7 +12,8 @@ public class PrintProcess extends MigratableProcess {
 	private String query;
 	private int coreValue; // core value of the thread, use to examine process migration
 	private volatile boolean suspending;
-
+	private volatile boolean complete;
+	
 	public PrintProcess(String args[]) {
 		if (args.length != 3) {
 			System.err.println("usage: PrintProcess <queryString> <inputFile> <outputFile>");
@@ -20,6 +21,7 @@ public class PrintProcess extends MigratableProcess {
 			System.exit(1);
 		}
 		
+		complete = false;
 		suspending = false;
 		query = args[0];
 		inFile = new TransactionalFileInputStream(args[1]);
@@ -39,6 +41,9 @@ public class PrintProcess extends MigratableProcess {
 		        System.exit(1);
 			}
 		}
+		if (!suspending) {
+			complete = true;
+		}
 		suspending = false;		
 	}
 
@@ -56,5 +61,9 @@ public class PrintProcess extends MigratableProcess {
 	public void resume() {
 		suspending = false;
 		// run();
+	}
+	
+	public boolean isComplete() {
+		return complete;
 	}
 }

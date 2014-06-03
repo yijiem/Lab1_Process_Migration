@@ -26,4 +26,6 @@ public abstract class MigratableProcess implements Runnable, Serializable {
 	 * resume the process which has been suspended and then migrated
 	 */
 	public abstract void resume();
+	
+	public abstract boolean isComplete();
 }
