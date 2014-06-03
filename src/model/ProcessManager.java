@@ -19,6 +19,7 @@ public class ProcessManager {
 	private HashMap<Integer, Socket> slavelist;
 	private HashMap<Integer, String> processlist;
 	private HashMap<Integer, Integer> processSlaveMap;
+	private HashMap<Integer, String> processStatusMap;
 	private HashMap<Integer, ObjectOutputStream> slaveOutputStreamMap;
 	private BufferedReader reader;
 	private String userInput;
@@ -34,6 +35,7 @@ public class ProcessManager {
 		System.out.println("Starting ProcessManager...");
 		processlist = new HashMap<Integer, String>();
 		processSlaveMap = new HashMap<Integer, Integer>();
+		processStatusMap = new HashMap<Integer, String>();
 		slaveOutputStreamMap = new HashMap<Integer, ObjectOutputStream>();
 		handler = new ConnectionHandler(PORT_NUMBER);
 		// spawn a new thread for handling connection
@@ -64,8 +66,15 @@ public class ProcessManager {
 					// read the second argument
 					int resumeProcessID = Integer.parseInt(cmdLineArguments[1]);
 					sendResumeMsg(resumeProcessID);					
-				} else if (commandType.equals("display")) {
-					
+				} else if (commandType.equals("migrate")) {
+					// read the processID and migration destination slave
+					int migrateProcessID = Integer.parseInt(cmdLineArguments[1]);
+					int destinationSlaveID = Integer.parseInt(cmdLineArguments[2]);
+					migrate(migrateProcessID, destinationSlaveID);
+				} else if (commandType.equals("remove")) {
+					// read the second argument
+					int removeProcessID = Integer.parseInt(cmdLineArguments[1]);
+					remove(removeProcessID);
 				} else {
 					// command to start a new process
 					String processName = cmdLineArguments[0];
@@ -121,7 +130,8 @@ public class ProcessManager {
 			}			
 			// record the process in the processSlaveMap and processlist
 			processSlaveMap.put(processID, slaveID);
-			processlist.put(processID, processName);			
+			processlist.put(processID, processName);
+			processStatusMap.put(processID, "running");
 		} else {
 			System.out.println("slave with such slaveID does not exist!");
 		}
@@ -139,11 +149,13 @@ public class ProcessManager {
 				try {
 					outputStream = slaveOutputStreamMap.get(targetSlaveID);
 					outputStream.writeObject("suspend");
-					outputStream.writeObject(new Integer(processID));
+					outputStream.writeObject(processID);
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
+				// update process status
+				processStatusMap.put(processID, "suspending");
 			} else {
 				System.out.println("Error when locating slave socket...");
 			}
@@ -168,6 +180,8 @@ public class ProcessManager {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
+				// update process status
+				processStatusMap.put(processID, "running");
 			} else {
 				System.out.println("Error when locating slave socket...");
 			}
@@ -181,9 +195,57 @@ public class ProcessManager {
 		if (currentLocation.intValue() == targetSlaveID) {
 			System.out.println("Process already running/suspending at this location...");
 		} else {
-			
+			// suspend the signal if its currently running
+			if (processStatusMap.get(processID).equals("running")) {
+				sendSuspendMsg(processID);
+			}
+			try {
+				// contact the slave currently holding the process
+				Integer slaveID = getProcessLocation(processID);
+				outputStream = slaveOutputStreamMap.get(slaveID);	
+				outputStream.writeObject("migrate");
+				outputStream.writeObject(processID);
+				Thread.sleep(1000);
+				// contact the recieving slave
+				outputStream = slaveOutputStreamMap.get(targetSlaveID);
+				if (outputStream == null) {
+					Socket slaveSocket = slavelist.get(targetSlaveID);
+					outputStream = new ObjectOutputStream(slaveSocket.getOutputStream());
+					slaveOutputStreamMap.put(targetSlaveID, outputStream);
+				}
+				outputStream.writeObject("receive");
+				outputStream.writeObject(processID);
+				// update process location
+				processSlaveMap.put(processID, targetSlaveID);
+			} catch (InterruptedException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}		
+	}
+	
+	// remove a process
+	public void remove(int processID) {
+		Integer targetSlaveID = getProcessLocation(processID);
+		outputStream = slaveOutputStreamMap.get(targetSlaveID);
+		if (outputStream != null) {
+			try {
+				outputStream.writeObject("suspend");
+				outputStream.writeObject(processID);
+				outputStream.writeObject("remove");
+				outputStream.writeObject(processID);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			// remove the process from data structure
+			processlist.remove(processID);
+			processStatusMap.remove(processID);
+			processSlaveMap.remove(processID);
 		}
-		
 	}
 	
 	// get process location based on the processID

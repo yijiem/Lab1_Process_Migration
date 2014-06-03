@@ -5,15 +5,6 @@ import java.io.Serializable;
 public abstract class MigratableProcess implements Runnable, Serializable {
 
 	private static final long serialVersionUID = 6418384768265078145L;
-	private int pid;
-	
-	public int getpid() {
-		return pid;
-	}
-
-	public void setpid(int pid) {
-		this.pid = pid;
-	}
 	
 	/**
 	 * run method of Thread
