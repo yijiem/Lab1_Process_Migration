@@ -1,20 +1,42 @@
 package io;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
 
+/*
+ * When a write is requested via the library, it opens the file, seek to the requisite location, 
+ * perform the operation, and close the file again. It maintains all the information 
+ * required in order to continue performing write operations on the file, 
+ * even if the process is transferred to another node. It uses a migration flag for caching purpose.
+ */
 public class TransactionalFileOutputStream extends OutputStream implements Serializable {
 
-	private static final long serialVersionUID = 3L;
+	private static final long serialVersionUID = 659312719307594816L;
 	private File file;
 	private int pointer;
+	private boolean migrated;
+	private transient RandomAccessFile writer;
 	
 	public TransactionalFileOutputStream(String filename) {
 		file = new File(filename);
 		pointer = 0;
+		migrated = false;
+		try {
+			writer = new RandomAccessFile(file, "rws");
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * set the migrated flag to true
+	 */
+	public void setMigrated() {
+		this.migrated = true;
 	}
 
 	/**
@@ -25,7 +47,10 @@ public class TransactionalFileOutputStream extends OutputStream implements Seria
 	 */
 	@Override
 	public void write(int arg0) throws IOException {
-		RandomAccessFile writer = new RandomAccessFile(file, "rws");
+		if (migrated) {
+			writer = new RandomAccessFile(file, "rws");
+			migrated = false; // reset flag
+		}
 		writer.seek(pointer);
 		writer.write(arg0);
 		pointer++;

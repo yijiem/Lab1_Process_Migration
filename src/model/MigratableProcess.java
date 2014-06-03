@@ -2,6 +2,9 @@ package model;
 
 import java.io.Serializable;
 
+/*
+ * Any process which extends this abstract base class is considered migratable in our system 
+ */
 public abstract class MigratableProcess implements Runnable, Serializable {
 
 	private static final long serialVersionUID = 6418384768265078145L;
@@ -12,7 +15,8 @@ public abstract class MigratableProcess implements Runnable, Serializable {
 	public abstract void run();
 	
 	/**
-	 * produce a simple string representation of the object
+	 * produce a simple string representation of the object,
+	 * containing class name and its arguments
 	 */
 	public abstract String toString();
 	
@@ -27,5 +31,9 @@ public abstract class MigratableProcess implements Runnable, Serializable {
 	 */
 	public abstract void resume();
 	
+	/**
+	 * check if the process has already completed
+	 * @return true if the process has already completed
+	 */
 	public abstract boolean isComplete();
 }

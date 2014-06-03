@@ -6,6 +6,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
 
+/*
+ * A dedicated Runnable class for managing connections to host(ProcessManager)
+ */
 public class ConnectionHandler implements Runnable {
 	
 	private int port;
@@ -17,6 +20,9 @@ public class ConnectionHandler implements Runnable {
 		slavelist = new HashMap<Integer,Socket>();
 	}
 	
+	/**
+	 * continuously accepting connections 
+	 */
 	public void run() {
 		ServerSocket serverSocket;
 		try {
@@ -36,7 +42,10 @@ public class ConnectionHandler implements Runnable {
         }
 	}
 	
-	// retrieve slavelist
+	/**
+	 * getter for slavelist HashMap
+	 * @return HashMap containing slaves and their sockets
+	 */
 	public HashMap<Integer, Socket> getSlaveList() {
 		return this.slavelist;
 	}
